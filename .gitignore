@@ -3,3 +3,10 @@
 **/.env
 **/.env.*
 .DS_Store
+
+# backend
+.vs/
+
+# .NET build
+**/bin/
+**/obj/
