@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: blockblast-postgres
+    environment:
+      POSTGRES_USER: blockblast
+      POSTGRES_PASSWORD: blockblast_pass
+      POSTGRES_DB: blockblast_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

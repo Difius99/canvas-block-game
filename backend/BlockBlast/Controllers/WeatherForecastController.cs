@@ -29,5 +29,11 @@ namespace BlockBlast.Controllers
             })
             .ToArray();
         }
+
+        [HttpGet("health")]
+        public StatusCodeResult GetHealth()
+        {
+            return StatusCode(200); 
+        }
     }
 }
