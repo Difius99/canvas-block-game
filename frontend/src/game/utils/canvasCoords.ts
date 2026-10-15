@@ -1,4 +1,4 @@
-export type Point = { x: number; y: number };
+import type { Point } from "../types";
 
 export function clientToCanvas(
   canvas: HTMLCanvasElement,

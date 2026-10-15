@@ -1,9 +1,5 @@
 import { CANVAS_H, CANVAS_W, CELL, START_X, START_Y } from "../config";
-
-export type Point = {
-  x: number;
-  y: number;
-};
+import type { Point } from "../types";
 
 export type StateConfig = {
   canvasW: number;

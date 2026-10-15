@@ -1,6 +1,5 @@
+import type { Point } from "../types";
 import type { PointerHandlers } from "./pointerListeners";
-
-export type Point = { x: number; y: number };
 
 export type CellDragDeps = {
   canvas: HTMLCanvasElement;
