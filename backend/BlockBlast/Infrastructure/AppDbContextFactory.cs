@@ -1,17 +1,28 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
 
-namespace BlockBlast.Infrastructure
+namespace BlockBlast.Infrastructure;
+
+public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
-    public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
+    public AppDbContext CreateDbContext(string[] args)
     {
-        public AppDbContext CreateDbContext(string[] args)
-        {
-            var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
 
-            optionsBuilder.UseNpgsql("Host=localhost;Port=5432;Database=blockblast_db;Username=blockblast;Password=blockblast_pass");
+        var config = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddJsonFile($"appsettings.{environment}.json", optional: true)
+            .AddEnvironmentVariables()
+            .Build();
 
-            return new AppDbContext(optionsBuilder.Options);
-        }
+        var cs = config.GetConnectionString("Default")
+                 ?? throw new InvalidOperationException("ConnectionStrings:Default is missing");
+
+        var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
+        optionsBuilder.UseNpgsql(cs);
+
+        return new AppDbContext(optionsBuilder.Options);
     }
 }
