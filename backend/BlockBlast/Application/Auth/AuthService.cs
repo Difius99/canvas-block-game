@@ -3,6 +3,7 @@ using BlockBlast.Domain.Entities;
 using BlockBlast.Infrastructure;
 using BlockBlast.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
+using BlockBlast.Application.Auth.Exceptions;
 
 namespace BlockBlast.Application.Auth;
 
@@ -23,7 +24,7 @@ public class AuthService
 
         var exists = await _db.Users.AnyAsync(u => u.UserName == userName);
         if (exists)
-            throw new InvalidOperationException("Username already taken");
+            throw new UsernameTakenException();
 
         var user = new User
         {
@@ -32,7 +33,14 @@ public class AuthService
         };
 
         _db.Users.Add(user);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            throw new UsernameTakenException();
+        }
     }
 
     public async Task<AuthResponse> Login(LoginRequest request)
@@ -41,11 +49,11 @@ public class AuthService
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.UserName == userName);
         if (user is null)
-            throw new InvalidOperationException("Invalid username or password");
+            throw new InvalidCredentialsException();
 
         var ok = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
         if (!ok)
-            throw new InvalidOperationException("Invalid username or password");
+            throw new InvalidCredentialsException();
 
         var token = _jwt.CreateAccessToken(user);
         return new AuthResponse(token);

@@ -1,5 +1,6 @@
 ﻿using BlockBlast.Application.Auth;
 using BlockBlast.Application.Contracts.Auth;
+using BlockBlast.Application.Auth.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -20,15 +21,33 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterRequest request)
     {
-        await _auth.Register(request);
-        return Ok();
+        try
+        {
+            await _auth.Register(request);
+            return Ok();
+        }
+        catch (UsernameTakenException ex)
+        {
+            return Conflict(new { message = ex.Message }); 
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {
-        var result = await _auth.Login(request);
-        return Ok(result);
+        try
+        {
+            var result = await _auth.Login(request);
+            return Ok(result);
+        }
+        catch (InvalidCredentialsException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [Authorize]
