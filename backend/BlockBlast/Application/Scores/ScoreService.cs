@@ -17,7 +17,11 @@ public class ScoreService
     public async Task SubmitScore(int userId, SubmitScoreRequest request)
     {
         if (request.Value < 0)
-            throw new InvalidOperationException("Score must be non-negative");
+            throw new ArgumentException("Score must be non-negative");
+
+        var userExists = await _db.Users.AnyAsync(u => u.Id == userId);
+        if (!userExists)
+            throw new InvalidOperationException("User not found");
 
         var score = new Score
         {
@@ -33,12 +37,31 @@ public class ScoreService
     {
         limit = Math.Clamp(limit, 1, 100);
 
-        return await _db.Scores
-            .GroupBy(s => new { s.UserId, s.User.UserName })
-            .Select(g => new LeaderboardEntry(g.Key.UserName, g.Max(x => x.Value)))
+        var data = await _db.Scores
+            .AsNoTracking()
+            .GroupBy(s => s.UserId)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                BestScore = g.Max(x => x.Value)
+            })
+            .Join(
+                _db.Users.AsNoTracking(),
+                x => x.UserId,
+                u => u.Id,
+                (x, u) => new
+                {
+                    u.UserName,
+                    x.BestScore
+                }
+            )
             .OrderByDescending(x => x.BestScore)
             .ThenBy(x => x.UserName)
             .Take(limit)
             .ToListAsync();
+
+        return data
+            .Select(x => new LeaderboardEntry(x.UserName, x.BestScore))
+            .ToList();
     }
 }
