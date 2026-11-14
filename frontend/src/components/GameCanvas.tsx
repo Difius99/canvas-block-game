@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import blockBlastGame from "../game/blockBlastGame";
+import { blockBlastGame } from "../game";
 
 export default function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -9,16 +9,18 @@ export default function GameCanvas() {
     if (!canvas) return;
 
     const game = blockBlastGame(canvas);
-    return game?.stop;
+    return game.stop;
   }, []);
   return (
     <canvas
       ref={canvasRef}
       style={{
-        width: "800px",
-        height: "600px",
-        border: "1px solid red",
-        margin: "10px",
+        display: "block",
+        width: "100%",
+        maxWidth: "800px",
+        aspectRatio: "4 / 3",
+        margin: "10px auto",
+        borderRadius: "16px",
         touchAction: "none",
       }}
     />

@@ -1,72 +1,96 @@
+import { CELL, TOUCH_LIFT, TRAY_SCALE, TRAY_SIZE } from "../config";
+import {
+  cancelDrag,
+  endDrag,
+  restart,
+  startDrag,
+  updateDrag,
+} from "../engine/game";
+import {
+  RESTART_BUTTON,
+  containsPoint,
+  trayPieceOrigin,
+  traySlotRect,
+} from "../layout";
+import type { GameState } from "../state/createState";
 import type { Point } from "../types";
 import type { PointerHandlers } from "./pointerListeners";
 
-export type CellDragDeps = {
+export type PieceDragDeps = {
   canvas: HTMLCanvasElement;
   toPoint: (e: PointerEvent) => Point;
-
-  getCell: () => number;
-
-  getPos: () => Point;
-  setPos: (x: number, y: number) => void;
-
-  isDragging: () => boolean;
-  setDragging: (value: boolean) => void;
-
-  getOffset: () => Point;
-  setOffset: (x: number, y: number) => void;
+  state: GameState;
+  onPlaced: () => void;
 };
 
-export function createCellDragHandlers(deps: CellDragDeps): PointerHandlers {
-  const {
-    canvas,
-    toPoint,
-    getCell,
-    getPos,
-    setPos,
-    isDragging,
-    setDragging,
-    getOffset,
-    setOffset,
-  } = deps;
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
-  function hitTest(point: Point): boolean {
-    const pos = getPos();
-    const size = getCell();
+export function createPieceDragHandlers(deps: PieceDragDeps): PointerHandlers {
+  const { canvas, toPoint, state, onPlaced } = deps;
 
-    return (
-      point.x >= pos.x &&
-      point.x <= pos.x + size &&
-      point.y >= pos.y &&
-      point.y <= pos.y + size
-    );
+  function findTrayIndex(point: Point): number {
+    for (let i = 0; i < TRAY_SIZE; i++) {
+      if (state.tray[i] && containsPoint(traySlotRect(i), point)) return i;
+    }
+    return -1;
+  }
+
+  function updateCursor(point: Point): void {
+    let cursor = "default";
+    if (state.drag) cursor = "grabbing";
+    else if (state.gameOver) {
+      if (containsPoint(RESTART_BUTTON, point)) cursor = "pointer";
+    } else if (findTrayIndex(point) >= 0) cursor = "grab";
+    canvas.style.cursor = cursor;
   }
 
   return {
     onDown(e) {
       const point = toPoint(e);
-      if (!hitTest(point)) return;
 
-      const pos = getPos();
-      setDragging(true);
-      setOffset(point.x - pos.x, point.y - pos.y);
+      if (state.gameOver) {
+        if (containsPoint(RESTART_BUTTON, point)) restart(state);
+        updateCursor(point);
+        return;
+      }
 
+      const index = findTrayIndex(point);
+      const piece = index >= 0 ? state.tray[index] : null;
+      if (!piece) return;
+
+      // точку захвата переводим из масштаба лотка в масштаб поля
+      const origin = trayPieceOrigin(piece, index);
+      const lift = e.pointerType === "touch" ? TOUCH_LIFT : 0;
+      const grabOffset = {
+        x: clamp((point.x - origin.x) / TRAY_SCALE, 0, piece.cols * CELL),
+        y: clamp((point.y - origin.y) / TRAY_SCALE, 0, piece.rows * CELL) + lift,
+      };
+
+      startDrag(state, index, point, grabOffset);
       canvas.setPointerCapture(e.pointerId);
+      updateCursor(point);
     },
 
     onMove(e) {
-      if (!isDragging()) return;
-
       const point = toPoint(e);
-      const offset = getOffset();
-      setPos(point.x - offset.x, point.y - offset.y);
+      updateDrag(state, point);
+      updateCursor(point);
     },
 
     onUp(e) {
-      if (!isDragging()) return;
+      if (!state.drag) return;
 
-      setDragging(false);
-      canvas.releasePointerCapture(e.pointerId);
+      if (endDrag(state)) onPlaced();
+      if (canvas.hasPointerCapture(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId);
+      }
+      updateCursor(toPoint(e));
+    },
+
+    onCancel() {
+      cancelDrag(state);
     },
   };
 }

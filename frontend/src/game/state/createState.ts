@@ -1,69 +1,43 @@
-import { CANVAS_H, CANVAS_W, CELL, START_X, START_Y } from "../config";
-import type { Point } from "../types";
+import type { Cell, Point } from "../types";
+import { createGrid, type ColoredCell, type Grid, type Lines } from "./grid";
+import { createTray, type Piece } from "./pieces";
 
-export type StateConfig = {
-  canvasW: number;
-  canvasH: number;
-  cell: number;
-  startX: number;
-  startY: number;
+export type DragState = {
+  trayIndex: number;
+  pointer: Point;
+  // смещение от левого верхнего угла фигуры до указателя (в масштабе поля)
+  grabOffset: Point;
+  // клетка, куда встанет фигура, или null, если сюда поставить нельзя
+  target: Cell | null;
+  // линии, которые очистятся, если отпустить фигуру в target
+  lines: Lines;
 };
 
-export type StateApi = {
-  // config
-  getCanvasW(): number;
-  getCanvasH(): number;
-  getCell(): number;
-
-  // square
-  getSquarePos(): Point;
-  setSquarePos(x: number, y: number): void;
-
-  // drag
-  isDragging(): boolean;
-  setDragging(value: boolean): void;
-
-  getOffset(): Point;
-  setOffset(x: number, y: number): void;
+export type ClearEffect = {
+  cells: ColoredCell[];
+  elapsedMs: number;
 };
 
-export function createState(partial: Partial<StateConfig> = {}): StateApi {
-  const config: StateConfig = {
-    canvasW: CANVAS_W,
-    canvasH: CANVAS_H,
-    cell: CELL,
-    startX: START_X,
-    startY: START_Y,
-    ...partial,
-  };
+export type GameState = {
+  grid: Grid;
+  tray: (Piece | null)[];
+  score: number;
+  best: number;
+  combo: number;
+  drag: DragState | null;
+  effects: ClearEffect[];
+  gameOver: boolean;
+};
 
-  let canvasW = config.canvasW;
-  let canvasH = config.canvasH;
-  let cell = config.cell;
-
-  let squarePos: Point = { x: config.startX, y: config.startY };
-
-  let dragging = false;
-  let offset: Point = { x: 0, y: 0 };
-
+export function createState(best = 0): GameState {
   return {
-    getCanvasW: () => canvasW,
-    getCanvasH: () => canvasH,
-    getCell: () => cell,
-
-    getSquarePos: () => ({ ...squarePos }),
-    setSquarePos: (x, y) => {
-      squarePos = { x, y };
-    },
-
-    isDragging: () => dragging,
-    setDragging: (value) => {
-      dragging = value;
-    },
-
-    getOffset: () => ({ ...offset }),
-    setOffset: (x, y) => {
-      offset = { x, y };
-    },
+    grid: createGrid(),
+    tray: createTray(),
+    score: 0,
+    best,
+    combo: 0,
+    drag: null,
+    effects: [],
+    gameOver: false,
   };
 }

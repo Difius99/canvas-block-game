@@ -1,32 +1,30 @@
+import { CANVAS_H, CANVAS_W } from "./config";
+import { update } from "./engine/game";
 import { createRafLoop } from "./engine/loop";
-import { createCellDragHandlers } from "./input/dragHandlers";
+import { createPieceDragHandlers } from "./input/dragHandlers";
 import { attachPointerListeners } from "./input/pointerListeners";
+import { render } from "./render/canvasRenderer";
 import { createState } from "./state/createState";
 import { clientToCanvas } from "./utils/canvasCoords";
+import { loadBestScore, saveBestScore } from "./utils/storage";
 
 export default function blockBlastGame(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("No 2D context");
 
-  const state = createState();
+  // рисуем в логических координатах CANVAS_W × CANVAS_H, но с учётом плотности пикселей
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = CANVAS_W * dpr;
+  canvas.height = CANVAS_H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  canvas.width = state.getCanvasW();
-  canvas.height = state.getCanvasH();
+  const state = createState(loadBestScore());
 
-  const pointerHandlers = createCellDragHandlers({
+  const pointerHandlers = createPieceDragHandlers({
     canvas,
-    toPoint: (event) => clientToCanvas(canvas, event),
-
-    getCell: () => state.getCell(),
-
-    getPos: () => state.getSquarePos(),
-    setPos: (x, y) => state.setSquarePos(x, y),
-
-    isDragging: () => state.isDragging(),
-    setDragging: (value) => state.setDragging(value),
-
-    getOffset: () => state.getOffset(),
-    setOffset: (x, y) => state.setOffset(x, y),
+    toPoint: (event) => clientToCanvas(canvas, event, CANVAS_W, CANVAS_H),
+    state,
+    onPlaced: () => saveBestScore(state.best),
   });
 
   const inputBinding = attachPointerListeners({
@@ -34,18 +32,11 @@ export default function blockBlastGame(canvas: HTMLCanvasElement) {
     pointerHandlers,
   });
 
-  function draw() {
-    if (!ctx || !canvas) return;
-    const { x, y } = state.getSquarePos();
-    const size = state.getCell();
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "red";
-    ctx.fillRect(x, y, size, size);
-  }
-
   const loop = createRafLoop({
-    tick: () => draw(),
+    tick: (dtMs) => {
+      update(state, dtMs);
+      render(ctx, state);
+    },
   });
 
   loop.start();

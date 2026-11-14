@@ -1,15 +1,17 @@
 import type { Point } from "../types";
 
+// переводит координаты экрана в логические координаты игры (width × height),
+// независимо от CSS-размера canvas и devicePixelRatio
 export function clientToCanvas(
-  canvas: HTMLCanvasElement,
+  element: HTMLElement,
   event: PointerEvent,
+  width: number,
+  height: number,
 ): Point {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
+  const rect = element.getBoundingClientRect();
 
   return {
-    x: (event.clientX - rect.left) * scaleX,
-    y: (event.clientY - rect.top) * scaleY,
+    x: (event.clientX - rect.left) * (width / rect.width),
+    y: (event.clientY - rect.top) * (height / rect.height),
   };
 }

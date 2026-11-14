@@ -2,6 +2,7 @@ export type PointerHandlers = {
   onDown?: (e: PointerEvent) => void;
   onMove?: (e: PointerEvent) => void;
   onUp?: (e: PointerEvent) => void;
+  onCancel?: (e: PointerEvent) => void;
 };
 
 export type AttachPointerListenersProps = {
@@ -15,17 +16,19 @@ export function attachPointerListeners({
   element,
   pointerHandlers,
 }: AttachPointerListenersProps): InputBinding {
-  const { onDown, onMove, onUp } = pointerHandlers;
+  const { onDown, onMove, onUp, onCancel } = pointerHandlers;
 
   if (onMove) element.addEventListener("pointermove", onMove);
   if (onDown) element.addEventListener("pointerdown", onDown);
   if (onUp) element.addEventListener("pointerup", onUp);
+  if (onCancel) element.addEventListener("pointercancel", onCancel);
 
   return {
     destroy() {
       if (onMove) element.removeEventListener("pointermove", onMove);
       if (onDown) element.removeEventListener("pointerdown", onDown);
       if (onUp) element.removeEventListener("pointerup", onUp);
+      if (onCancel) element.removeEventListener("pointercancel", onCancel);
     },
   };
 }
