@@ -1,11 +1,12 @@
 import "./App.css";
-import RedSquare from "./canvas/RedSquare";
+import GameCanvas from "./components/GameCanvas";
 import { GlobalStyle } from "./globalStyle";
+
 function App() {
   return (
     <>
       <GlobalStyle />
-      <RedSquare />
+      <GameCanvas />
     </>
   );
 }
