@@ -8,7 +8,14 @@ import { createState } from "./state/createState";
 import { clientToCanvas } from "./utils/canvasCoords";
 import { loadBestScore, saveBestScore } from "./utils/storage";
 
-export default function blockBlastGame(canvas: HTMLCanvasElement) {
+export type BlockBlastOptions = {
+  onGameOver?: (score: number) => void;
+};
+
+export default function blockBlastGame(
+  canvas: HTMLCanvasElement,
+  options: BlockBlastOptions = {},
+) {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("No 2D context");
 
@@ -24,7 +31,10 @@ export default function blockBlastGame(canvas: HTMLCanvasElement) {
     canvas,
     toPoint: (event) => clientToCanvas(canvas, event, CANVAS_W, CANVAS_H),
     state,
-    onPlaced: () => saveBestScore(state.best),
+    onPlaced: () => {
+      saveBestScore(state.best);
+      if (state.gameOver) options.onGameOver?.(state.score);
+    },
   });
 
   const inputBinding = attachPointerListeners({
