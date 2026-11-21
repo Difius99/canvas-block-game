@@ -1,9 +1,10 @@
-﻿using BlockBlast.Application.Contracts.Auth;
+using BlockBlast.Application.Auth.Exceptions;
+using BlockBlast.Application.Contracts.Auth;
 using BlockBlast.Domain.Entities;
 using BlockBlast.Infrastructure;
 using BlockBlast.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
-using BlockBlast.Application.Auth.Exceptions;
+using Npgsql;
 
 namespace BlockBlast.Application.Auth;
 
@@ -18,12 +19,10 @@ public class AuthService
         _jwt = jwt;
     }
 
-    public async Task Register(RegisterRequest request)
+    public async Task<AuthResponse> Register(RegisterRequest request)
     {
-        var userName = request.UserName.Trim();
-
-        var exists = await _db.Users.AnyAsync(u => u.UserName == userName);
-        if (exists)
+        var userName = request.Username.Trim();
+        if (await _db.Users.AnyAsync(user => user.UserName == userName))
             throw new UsernameTakenException();
 
         var user = new User
@@ -37,25 +36,34 @@ public class AuthService
         {
             await _db.SaveChangesAsync();
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_Users_UserName" })
         {
             throw new UsernameTakenException();
         }
+
+        return new AuthResponse(_jwt.CreateAccessToken(user), new UserResponse(user.UserName, 0));
     }
 
     public async Task<AuthResponse> Login(LoginRequest request)
     {
-        var userName = request.UserName.Trim();
-
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.UserName == userName);
-        if (user is null)
+        var userName = request.Username.Trim();
+        var user = await _db.Users.FirstOrDefaultAsync(user => user.UserName == userName);
+        if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new InvalidCredentialsException();
 
-        var ok = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
-        if (!ok)
+        var profile = await GetProfile(user.Id);
+        if (profile is null)
             throw new InvalidCredentialsException();
 
-        var token = _jwt.CreateAccessToken(user);
-        return new AuthResponse(token);
+        return new AuthResponse(_jwt.CreateAccessToken(user), profile);
     }
+
+    public Task<UserResponse?> GetProfile(int userId) =>
+        _db.Users.AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => new UserResponse(
+                user.UserName,
+                user.Scores.Max(score => (int?)score.Value) ?? 0))
+            .SingleOrDefaultAsync();
 }

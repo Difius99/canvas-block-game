@@ -1,3 +1,5 @@
-﻿namespace BlockBlast.Application.Contracts.Auth;
+using System.ComponentModel.DataAnnotations;
 
-public record LoginRequest(string UserName, string Password);
+namespace BlockBlast.Application.Contracts.Auth;
+
+public record LoginRequest([Required] string Username, [Required] string Password);

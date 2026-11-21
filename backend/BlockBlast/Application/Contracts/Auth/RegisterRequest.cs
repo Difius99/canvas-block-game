@@ -1,3 +1,12 @@
-﻿namespace BlockBlast.Application.Contracts.Auth;
+using System.ComponentModel.DataAnnotations;
 
-public record RegisterRequest(string UserName, string Password);
+namespace BlockBlast.Application.Contracts.Auth;
+
+public record RegisterRequest(
+    [Required]
+    [StringLength(20, MinimumLength = 3)]
+    [RegularExpression("^[a-zA-Z0-9_]+$")]
+    string Username,
+    [Required]
+    [StringLength(100, MinimumLength = 6)]
+    string Password);

@@ -1,4 +1,5 @@
-﻿using BlockBlast.Application.Contracts.Scores;
+using System.Data;
+using BlockBlast.Application.Contracts.Scores;
 using BlockBlast.Domain.Entities;
 using BlockBlast.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -14,54 +15,92 @@ public class ScoreService
         _db = db;
     }
 
-    public async Task SubmitScore(int userId, SubmitScoreRequest request)
+    public async Task<SubmitScoreResponse?> SubmitScore(int userId, SubmitScoreRequest request)
     {
-        if (request.Value < 0)
-            throw new ArgumentException("Score must be non-negative");
+        await using var transaction = await _db.Database.BeginTransactionAsync();
 
-        var userExists = await _db.Users.AnyAsync(u => u.Id == userId);
-        if (!userExists)
-            throw new InvalidOperationException("User not found");
+        // Serialize submissions for this player before reading the previous best.
+        var users = await _db.Users
+            .FromSql($"""SELECT * FROM "Users" WHERE "Id" = {userId} FOR UPDATE""")
+            .AsNoTracking()
+            .ToListAsync();
+        if (users.Count == 0)
+            return null;
 
-        var score = new Score
-        {
-            UserId = userId,
-            Value = request.Value
-        };
+        var previousBest = await _db.Scores
+            .Where(score => score.UserId == userId)
+            .MaxAsync(score => (int?)score.Value) ?? 0;
 
-        _db.Scores.Add(score);
+        _db.Scores.Add(new Score { UserId = userId, Value = request.Score });
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return new SubmitScoreResponse(Math.Max(previousBest, request.Score), request.Score > previousBest);
     }
 
-    public async Task<List<LeaderboardEntry>> GetLeaderboard(int limit)
+    public async Task<LeaderboardResponse> GetLeaderboard(int limit, int? userId)
     {
         limit = Math.Clamp(limit, 1, 100);
 
-        var data = await _db.Scores
-            .AsNoTracking()
-            .GroupBy(s => s.UserId)
-            .Select(g => new
+        var bestScores = _db.Scores
+            .Where(score => score.Value > 0)
+            .GroupBy(score => score.UserId)
+            .Select(scores => new { UserId = scores.Key, Value = scores.Max(score => score.Value) });
+
+        var standings =
+            from best in bestScores
+            join score in _db.Scores
+                on new { best.UserId, best.Value } equals new { score.UserId, score.Value }
+            group score by new { best.UserId, best.Value } into results
+            select new
             {
-                UserId = g.Key,
-                BestScore = g.Max(x => x.Value)
-            })
-            .Join(
-                _db.Users.AsNoTracking(),
-                x => x.UserId,
-                u => u.Id,
-                (x, u) => new
-                {
-                    u.UserName,
-                    x.BestScore
-                }
-            )
-            .OrderByDescending(x => x.BestScore)
-            .ThenBy(x => x.UserName)
+                results.Key.UserId,
+                results.Key.Value,
+                BestScoreAt = results.Min(score => score.CreatedAt)
+            };
+
+        // Keep the top and the current player's rank on the same snapshot.
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead);
+        var top = await (
+            from result in standings
+            join user in _db.Users on result.UserId equals user.Id
+            orderby result.Value descending, result.BestScoreAt, result.UserId
+            select new { result.UserId, user.UserName, result.Value })
             .Take(limit)
             .ToListAsync();
 
-        return data
-            .Select(x => new LeaderboardEntry(x.UserName, x.BestScore))
-            .ToList();
+        var entries = top.Select((result, index) =>
+            new LeaderboardEntry(index + 1, result.UserName, result.Value)).ToList();
+
+        LeaderboardEntry? me = null;
+        if (userId is int currentUserId)
+        {
+            var topIndex = top.FindIndex(result => result.UserId == currentUserId);
+            if (topIndex >= 0)
+            {
+                me = entries[topIndex];
+            }
+            else
+            {
+                var current = await (
+                    from result in standings
+                    join user in _db.Users on result.UserId equals user.Id
+                    where user.Id == currentUserId
+                    select new { user.UserName, result.Value, result.BestScoreAt })
+                    .SingleOrDefaultAsync();
+                if (current is not null)
+                {
+                    var ahead = await standings.CountAsync(result =>
+                        result.Value > current.Value ||
+                        (result.Value == current.Value &&
+                            (result.BestScoreAt < current.BestScoreAt ||
+                             (result.BestScoreAt == current.BestScoreAt && result.UserId < currentUserId))));
+                    me = new LeaderboardEntry(ahead + 1, current.UserName, current.Value);
+                }
+            }
+        }
+
+        await transaction.CommitAsync();
+        return new LeaderboardResponse(entries, me);
     }
 }

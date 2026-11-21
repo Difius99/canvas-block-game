@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using BlockBlast.Application.Contracts.Scores;
 using BlockBlast.Application.Scores;
 using Microsoft.AspNetCore.Authorization;
@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BlockBlast.Controllers;
 
 [ApiController]
+[Route("api")]
 public class ScoresController : ControllerBase
 {
     private readonly ScoreService _scores;
@@ -18,31 +19,19 @@ public class ScoresController : ControllerBase
 
     [Authorize]
     [HttpPost("scores")]
-    public async Task<IActionResult> Submit(SubmitScoreRequest request)
+    public async Task<ActionResult<SubmitScoreResponse>> Submit(SubmitScoreRequest request)
     {
-        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(userIdStr, out var userId))
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return Unauthorized();
 
-        try
-        {
-            await _scores.SubmitScore(userId, request);
-            return Ok();
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var result = await _scores.SubmitScore(userId, request);
+        return result is null ? Unauthorized() : Ok(result);
     }
 
     [HttpGet("leaderboard")]
-    public async Task<ActionResult<List<LeaderboardEntry>>> Leaderboard([FromQuery] int limit = 50)
+    public async Task<ActionResult<LeaderboardResponse>> Leaderboard([FromQuery] int limit = 10)
     {
-        var list = await _scores.GetLeaderboard(limit);
-        return Ok(list);
+        int? userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        return Ok(await _scores.GetLeaderboard(limit, userId));
     }
 }

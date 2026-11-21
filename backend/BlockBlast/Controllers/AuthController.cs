@@ -1,14 +1,14 @@
-﻿using BlockBlast.Application.Auth;
-using BlockBlast.Application.Contracts.Auth;
+using System.Security.Claims;
+using BlockBlast.Application.Auth;
 using BlockBlast.Application.Auth.Exceptions;
+using BlockBlast.Application.Contracts.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace BlockBlast.Controllers;
 
 [ApiController]
-[Route("auth")]
+[Route("api/auth")]
 public class AuthController : ControllerBase
 {
     private readonly AuthService _auth;
@@ -19,20 +19,15 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register(RegisterRequest request)
+    public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request)
     {
         try
         {
-            await _auth.Register(request);
-            return Ok();
+            return Ok(await _auth.Register(request));
         }
         catch (UsernameTakenException ex)
         {
-            return Conflict(new { message = ex.Message }); 
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
+            return Conflict(new { message = ex.Message });
         }
     }
 
@@ -41,22 +36,22 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var result = await _auth.Login(request);
-            return Ok(result);
+            return Ok(await _auth.Login(request));
         }
         catch (InvalidCredentialsException ex)
         {
-            return Conflict(new { message = ex.Message });
+            return Unauthorized(new { message = ex.Message });
         }
     }
 
     [Authorize]
     [HttpGet("me")]
-    public IActionResult Me()
+    public async Task<ActionResult<UserResponse>> Me()
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var userName = User.FindFirstValue(ClaimTypes.Name);
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return Unauthorized();
 
-        return Ok(new { userId, userName });
+        var profile = await _auth.GetProfile(userId);
+        return profile is null ? Unauthorized() : Ok(profile);
     }
 }

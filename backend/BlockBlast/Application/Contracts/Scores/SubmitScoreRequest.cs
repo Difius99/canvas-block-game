@@ -1,3 +1,11 @@
-﻿namespace BlockBlast.Application.Contracts.Scores;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
-public record SubmitScoreRequest(int Value);
+namespace BlockBlast.Application.Contracts.Scores;
+
+public record SubmitScoreRequest(
+    [property: JsonRequired]
+    [Range(0, 10_000_000)]
+    int Score);
+
+public record SubmitScoreResponse(int BestScore, bool IsNewBest);
