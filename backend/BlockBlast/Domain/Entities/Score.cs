@@ -1,7 +1,10 @@
-﻿namespace BlockBlast.Domain.Entities;
+namespace BlockBlast.Domain.Entities;
 
 public class Score
 {
+    public const int MinValue = 0;
+    public const int MaxValue = 10_000_000;
+
     public int Id { get; set; }
 
     public int Value { get; set; }

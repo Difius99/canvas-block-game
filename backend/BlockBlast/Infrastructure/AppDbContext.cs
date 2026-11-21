@@ -1,4 +1,4 @@
-﻿using BlockBlast.Domain.Entities;
+using BlockBlast.Domain.Entities;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +25,9 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<Score>(e =>
         {
+            e.ToTable("Scores", table => table.HasCheckConstraint(
+                "CK_Scores_Value_Range",
+                $@"""Value"" BETWEEN {Score.MinValue} AND {Score.MaxValue}"));
             e.Property(x => x.Value).IsRequired();
             e.HasOne(x => x.User)
              .WithMany(u => u.Scores)

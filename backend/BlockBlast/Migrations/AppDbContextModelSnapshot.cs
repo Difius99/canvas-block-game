@@ -43,7 +43,10 @@ namespace BlockBlast.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Scores");
+                    b.ToTable("Scores", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Scores_Value_Range", "\"Value\" BETWEEN 0 AND 10000000");
+                        });
                 });
 
             modelBuilder.Entity("BlockBlast.Domain.Entities.User", b =>
