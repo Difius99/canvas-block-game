@@ -20,7 +20,20 @@ var connectionString = builder.Configuration.GetConnectionString("Default");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-builder.Services.AddScoped<JwtTokenService>();
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
+    throw new InvalidOperationException("Jwt:Key must contain at least 32 UTF-8 bytes for HS256.");
+
+var jwtIssuer = builder.Configuration["Jwt:Issuer"];
+if (string.IsNullOrWhiteSpace(jwtIssuer))
+    throw new InvalidOperationException("Jwt:Issuer must be configured.");
+
+var jwtAudience = builder.Configuration["Jwt:Audience"];
+if (string.IsNullOrWhiteSpace(jwtAudience))
+    throw new InvalidOperationException("Jwt:Audience must be configured.");
+
+var jwtSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+builder.Services.AddSingleton(new JwtTokenService(jwtSigningKey, jwtIssuer, jwtAudience));
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ScoreService>();
 
@@ -28,16 +41,15 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt =>
     {
-        var key = builder.Configuration["Jwt:Key"]!;
         opt.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = jwtSigningKey
         };
     });
 
